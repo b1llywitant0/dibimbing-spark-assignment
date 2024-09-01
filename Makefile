@@ -11,11 +11,13 @@ docker-build:
 	@echo '__________________________________________________________'
 	@echo 'Building Docker Images ...'
 	@echo '__________________________________________________________'
-	@docker network inspect dataeng-network-assignment >/dev/null 2>&1 || docker network create dataeng-network-assignment
+	@docker network inspect dataeng-network >/dev/null 2>&1 || docker network create dataeng-network
 	@echo '__________________________________________________________'
 	@docker build -t dataeng-dibimbing/spark -f ./containers/Dockerfile.spark .
 	@echo '__________________________________________________________'
 	@docker build -t dataeng-dibimbing/airflow -f ./containers/Dockerfile.airflow .
+	@echo '__________________________________________________________'
+	@docker build -t dataeng-dibimbing/jupyter -f ./containers/Dockerfile.jupyter .
 	@echo '==========================================================='
 
 spark:
@@ -65,6 +67,17 @@ postgres-create-warehouse:
 	@echo 'Creating Warehouse DB...'
 	@echo '_________________________________________'
 	@docker exec -it ${POSTGRES_CONTAINER_NAME} psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -f sql/warehouse-ddl.sql
+	@echo '==========================================================='
+
+jupyter:
+	@echo '__________________________________________________________'
+	@echo 'Creating Jupyter Notebook Cluster at http://localhost:${JUPYTER_PORT} ...'
+	@echo '__________________________________________________________'
+	@docker compose -f ./containers/docker-compose-jupyter.yml --env-file .env up -d
+	@echo 'Created...'
+	@echo 'Processing token...'
+	@sleep 20
+	@docker logs ${JUPYTER_CONTAINER_NAME} 2>&1 | grep '\?token\=' -m 1 | cut -d '=' -f2
 	@echo '==========================================================='
 
 clean:

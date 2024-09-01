@@ -13,16 +13,15 @@ spark_dag = DAG(
     default_args=default_args,
     schedule_interval=None,
     dagrun_timeout=timedelta(minutes=60),
-    description="Test for spark submit",
     start_date=days_ago(1),
 )
 
 Extract = SparkSubmitOperator(
-    application="/spark-scripts/spark-example.py",
-    conn_id="spark_main",
     task_id="spark_submit_task",
-    dag=spark_dag,
-#    packages="org."
+    application="/spark-scripts/postgres-read.py",
+    conn_id="spark_main",
+    packages="org.postgresql:postgresql:42.2.18",
+    dag=spark_dag
 )
 
 Extract

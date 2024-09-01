@@ -43,5 +43,5 @@ services:
 
 networks:
   default:
-    name: dataeng-network-assignment
+    name: dataeng-network
     external: true
