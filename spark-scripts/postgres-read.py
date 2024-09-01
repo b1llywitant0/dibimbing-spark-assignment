@@ -1,3 +1,4 @@
+# LIBRARIES
 import pyspark
 import os
 
@@ -7,6 +8,7 @@ from pyspark.sql.types import StructType
 from pyspark.sql.functions import to_timestamp,col,when,count,isnan,month
 import pyspark.sql.functions as F
 
+# ENV
 dotenv_path = Path('/resources/.env')
 load_dotenv(dotenv_path=dotenv_path)
 
@@ -15,6 +17,7 @@ postgres_port = os.getenv('POSTGRES_PORT')
 postgres_user = os.getenv('POSTGRES_USER')
 postgres_password = os.getenv('POSTGRES_PASSWORD')
 
+# SPARK CONTEXT
 sparkcontext = pyspark.SparkContext.getOrCreate(conf=(
         pyspark
         .SparkConf()
@@ -26,6 +29,7 @@ sparkcontext.setLogLevel("WARN")
 
 spark = pyspark.sql.SparkSession(sparkcontext.getOrCreate())
 
+# CREATING CONNECTION BETWEEN SPARK AND POSTGRES
 jdbc_url = f'jdbc:postgresql://{postgres_host}:{postgres_port}/warehouse'
 jdbc_properties = {
     'user': postgres_user,
@@ -35,25 +39,31 @@ jdbc_properties = {
 
 print(jdbc_url)
 
+# READING RETAIL TABLE
 retail_df = spark.read.jdbc(
     jdbc_url,
     'public.retail',
     properties=jdbc_properties
 )
 
+# SHOWING TOP 5 DATA OF RETAIL TABLE
 retail_df.show(5)
 
+# SHOWING UP THE SCHEMA
 retail_df.printSchema()
 
+# TRANSFORMATION 1: Transaction Value = Unit Price x Quantity
 retail_df = retail_df.withColumn('trxvalue', F.round(F.col('unitprice')*F.col('quantity'),2))
 
+# CREATING TABLE HIVE FOR SQL OPERATION
 retail_df.createOrReplaceTempView('retail')
 
+# Note:
 # I don't want to speculate about the data and making transformation based on assumptions only.
 # Thus, for safety measures, I will exclude data based on outliers of quantity and unitprice.
 # Also, excluding NULL rows on customerid, invoiceno, stockcode.
 
-# unitprice
+# TRANSFORMATION 2: unitprice - outliers drop
 retail_df = spark.sql('''
     WITH 
     q1 AS (
@@ -89,7 +99,7 @@ retail_df = spark.sql('''
 
 retail_df.createOrReplaceTempView('retail')
 
-# quantity
+# TRANSFORMATION 3: quantity - outliers drop
 retail_df = spark.sql('''
     WITH 
     q1 AS (
@@ -123,11 +133,12 @@ retail_df = spark.sql('''
     AND quantity > 0
 ''')
 
+# TRANSFORMATION 4: Drop rows with NULL values based on several columns
 retail_df = retail_df.na.drop(subset=['customerid','invoiceno','stockcode'])
 
 retail_df.createOrReplaceTempView('retail')
 
-# Descriptive Analytics
+# ANALYSIS 1: Descriptive Analytics
 spark.sql('''
     SELECT 
     DISTINCT(YEAR(invoicedate)) AS year,
@@ -141,7 +152,7 @@ spark.sql('''
     GROUP BY year
 ''').write.jdbc(url=jdbc_url, table='public.descriptive', mode="overwrite", properties=jdbc_properties)
 
-# Top 10 Countries with The Highest Transaction Value
+# ANALYSIS 2: Top 10 Countries with The Highest Transaction Value
 spark.sql('''
     SELECT 
     country,
@@ -152,7 +163,7 @@ spark.sql('''
     LIMIT 10
 ''').write.jdbc(url=jdbc_url, table='public.top10countries', mode="overwrite", properties=jdbc_properties)
 
-# Top 10 Countries with Highest YoY % Incremental in Dec 2011
+# ANALYSIS 3: Top 10 Countries with Highest YoY % Incremental in Dec 2011
 spark.sql('''
 WITH 
 data AS (
@@ -190,7 +201,7 @@ ORDER BY YoY_percent_incremental DESC
 LIMIT 10
 ''').write.jdbc(url=jdbc_url, table='public.top10countries_incremental', mode="overwrite", properties=jdbc_properties)
 
-# Churn rate per quarter
+# ANALYSIS 4: Churn rate per quarter
 spark.sql('''
 WITH 
 quarters AS (
